@@ -11,10 +11,12 @@
 	.icon {
 		fill: #aaa;
 	}
+	/*
 	.icon:hover {
 		fill: #ccc;
 	}
 	.icon:active{
 		fill: #fff;
 	}
+	*/
 </style>

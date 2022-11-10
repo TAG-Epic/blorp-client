@@ -10,6 +10,18 @@
     <link href="https://fonts.googleapis.com/css?family=Roboto" rel="stylesheet">
 </svelte:head>
 
+<div class="notifications-container">
+    {#each notifications as notification}
+        <div class={"notification notification-type-" + notification.type} on:click={() => {removeNotification(notification);}}>
+            <div class="notification-content-container">
+                <h3 class="notification-title">{notification.title}</h3>
+                <hr class="notification-devider" />
+                <p class="notification-description">{notification.description}</p>
+            </div>
+        </div>
+    {/each}
+</div>
+
 <div class="content">
     <div class="game-container">
         <div class="game">
@@ -17,7 +29,26 @@
                 {#each localBoard as row}
                     <div class="row">
                         {#each row as tile}
-                            <div class="tile" on:click={() => {selectedTile = tile;}}>
+                            {#if tile === row[0]}
+                                <!-- Before first tile in row. Used for padding -->
+                                {#if tile.position[0] - lowestX !== 0}
+                                    {#each [...Array(tile.position[0] - lowestX)] as _}
+                                        <div class="tile-padding"></div>
+                                    {/each}
+                                {/if}
+
+                            {/if}
+                            <div
+                                class="tile"
+                                on:click={() => {selectedTile = tile;}}
+                                on:contextmenu|preventDefault={() => {
+                                    if (getDistance(currentPlayer.position, tile.position) !== 1) {
+                                        return;
+                                    }
+                                    selectedTile = tile;
+                                    moveTo();
+                                }}
+                            >
                                 <div class="players">
                                     {#if currentPlayer.position[0] === tile.position[0] && currentPlayer.position[1] === tile.position[1]}
                                         <div class="player current-player" on:click={() => {selectedPlayer = null}}>
@@ -26,7 +57,7 @@
                                     {/if}
                                     <!-- Enemies -->
                                     {#each players as player}
-                                        {#if player !== currentPlayer && player.position[0] == tile.position[0] && player.position[1] === tile.position[1]}
+                                        {#if player !== currentPlayer && player.position[0] == tile.position[0] && player.position[1] === tile.position[1] && player.health !== 0}
                                         <div class="player enemy-player" on:click={() => {selectedPlayer = player}}>
                                             
                                         </div>
@@ -60,6 +91,12 @@
                             </div>
                             <span class="health">{currentPlayer.health}</span>
                         </div>
+                        <div class="range">
+                            <div class="range-container">
+                                <RangeIcon />
+                            </div>
+                            <span class="range">{currentPlayer.range}</span>
+                        </div>
                     </div>
                 {/if}
                 <hr />
@@ -69,7 +106,7 @@
             <div class="upgrades-section">
                 <h1>Upgrades</h1>
                 <div class="upgrades">
-                    <div class="upgrade range-upgrade">
+                    <div class="upgrade range-upgrade" on:click={() => {doUpgrade("range");}}>
                         <div class="icon-container">
                             <RangeIcon />
                         </div>
@@ -87,20 +124,28 @@
                             <div class="action-point-container">
                                 <ActionPointIcon />
                             </div>
-                            <span class="action-points">{currentPlayer.action_points}</span>
+                            <span class="action-points">{selectedPlayer.action_points}</span>
                         </div>
                         <div class="health">
                             <div class="health-container">
                                 <HealthIcon />
                             </div>
-                            <span class="health">{currentPlayer.health}</span>
+                            <span class="health">{selectedPlayer.health}</span>
+                        </div>
+                        <div class="range">
+                            <div class="range-container">
+                                <RangeIcon />
+                            </div>
+                            <span class="range">{selectedPlayer.range}</span>
                         </div>
                     </div>
 
                     <h2>Actions</h2>
                     <div class="selected-player-actions">
-                        <button class="gift-button">Gift</button>
-                        <button class="attack-button">Attack!</button>
+                        {#if getDistance(currentPlayer.position, selectedPlayer.position) <= currentPlayer.range}
+                            <button class="success-button" on:click={giftSelectedPlayer}>Gift</button>
+                            <button class="danger-button" on:click={attackSelectedPlayer}>Attack!</button>
+                        {/if}
                     </div>
                     <hr />
                 </div>
@@ -113,7 +158,7 @@
                     <h2>Actions</h2>
                     <div class="selected-tile-actions">
                         {#if getDistance(selectedTile.position, currentPlayer.position) === 1}
-                            <button class="move-to-button" on:click={moveTo}>Move to</button>
+                            <button class="success-button" on:click={moveTo}>Move to</button>
                         {/if}
                     </div>
                 </div>
@@ -136,13 +181,17 @@
 
                     {#if selectedTile !== null}
                         <p>Selected tile: {selectedTile.position[0]}:{selectedTile.position[1]}</p>
-                        <button class="debug-points-button" on:click={() => {
+                        <button class="success-button" on:click={() => {
                             selectedTileDirection = getSelectedDirection();
                         }}>tile direction: {selectedTileDirection}</button>
                     {:else}
                         <p>Selected tile: null</p>
                     {/if}
-                    <button class="debug-points-button" on:click={getDebugPoints}>Debug points</button>
+                    <button class="success-button" on:click={getDebugPoints}>Debug points</button>
+                    <button class="danger-button" on:click={deleteAccount}>Delete account</button>
+                    <button class="success-button" on:click={() => {
+                        addNotification("info", "Test", "This is a test notification");
+                    }}>Test notification</button>
                     <hr>
                 </div>
             {/if}
@@ -165,6 +214,8 @@
     let updateGameStateTaskId = null;
     let selectedPlayer = null;
     let selectedTile = null;
+    let lowestX = 1000; // So high it will be changed later
+    let notifications = [];
 
     // DEBUG
     let selectedTileDirection = null;
@@ -173,26 +224,66 @@
         let token = localStorage.getItem("login_token");
         let currentUserId = localStorage.getItem("current_user_id");
 
+
         let response = await fetch(`${config.API_BASE}/user/all`);
 
+        if (!response.ok) {
+            let details = await response.json();
+            addNotification("error", "Failed to fetch players", details.error);
+            return;
+        }
+
         players = await response.json();
+        players = players.map((player) => {
+            player.action_points = calculateUpdatedPoints(player);
+            return player;
+        });
 
         currentPlayer = players.filter((player) => player.id == currentUserId)[0];
 
+        if (currentPlayer === undefined || currentPlayer === null) {
+            console.log("Failed to find current player. Deleting account");
+            deleteAccount();
+            return;
+        }
+
+        // Death check
+        if (currentPlayer.health === 0) {
+            location.href = "/dead";
+        }
+        // Update selectedPlayer
+        if (selectedPlayer !== null) {
+            selectedPlayer = players.filter((player) => player.id == selectedPlayer.id)[0];
+        }
+
         response = await fetch(`${config.API_BASE}/board`);
+
+        if (!response.ok) {
+            let details = await response.json();
+            addNotification("error", "Failed to fetch board", details.error);
+            return;
+        }
+
         board = await response.json();
+        board.reverse();
+
+        lowestX = 1000; // Reset
 
         let _localBoard = [];
 
-        board.forEach((row, row_id) => {
-            let tiles = row.filter((tile, tile_id) => {
-                let distance = getDistance(currentPlayer.position, [row_id, tile_id]);
+        board.forEach((row) => {
+            let tiles = row.filter((tile) => {
+                
+                let distance = getDistance(currentPlayer.position, tile.position);
 
-                // DEBUG
-                if (distance < (currentPlayer.range + 2)) {
-                    //console.log({row_id, tile_id, distance});
+                if (distance > currentPlayer.range + 2) {
+                    return false;
                 }
-                return distance < (currentPlayer.range + 2);
+
+                if (tile.position[0] < lowestX) {
+                    lowestX = tile.position[0];
+                }
+                return true; 
             });
             if (tiles.length === 0) {
                 return;
@@ -214,9 +305,9 @@
         } else if (selectedTile.position[0] < currentPlayer.position[0]) {
             return "LEFT";
         } else if (selectedTile.position[1] < currentPlayer.position[1]) {
-            return "UP";
-        } else if (selectedTile.position[1] > currentPlayer.position[1]) {
             return "DOWN";
+        } else if (selectedTile.position[1] > currentPlayer.position[1]) {
+            return "UP";
         }
 
     }
@@ -235,9 +326,103 @@
 
         if (!response.ok) {
             let details = await response.json()
+            addNotification("error", "Error while moving!", details.error);
             console.error(`Could not move: ${details.error}`);
+            return;
         }
-        updateGameState()
+        updateGameState();
+    }
+
+    async function doUpgrade(upgradeType) {
+        console.log(`Upgrading ${upgradeType}`);
+
+        let token = localStorage.getItem("login_token");
+
+        let response = await fetch(`${config.API_BASE}/user/@me/upgrade/${upgradeType}`, {
+            method: "POST",
+            headers: {
+                "authentication": token
+            }
+        });
+
+        if (!response.ok) {
+            let details = await response.json()
+            addNotification("error", "Error while upgrading!", details.error);
+            console.error(`Could not upgrade: ${details.error}`);
+            return;
+        }
+        addNotification("info", "Upgrade success", `Your ${upgradeType} upgrade has succeeded.`);
+        updateGameState();
+    }
+
+    async function giftSelectedPlayer() {
+        let token = localStorage.getItem("login_token");
+
+        let response = await fetch(`${config.API_BASE}/user/${selectedPlayer.id}/gift`, {
+            method: "POST",
+            headers: {
+                "authentication": token
+            }
+        });
+
+        if (!response.ok) {
+            let details = await response.json()
+            addNotification("error", "Error while gifting!", details.error);
+            console.error(`Could not gift: ${details.error}`);
+            return;
+        }
+        addNotification("info", "Gift complete", `Gifted 1 action point to ${selectedPlayer.username}`);
+
+        updateGameState();
+    }
+    async function attackSelectedPlayer() {
+        let token = localStorage.getItem("login_token");
+
+        let response = await fetch(`${config.API_BASE}/user/${selectedPlayer.id}/attack`, {
+            method: "POST",
+            headers: {
+                "authentication": token
+            }
+        });
+
+        if (!response.ok) {
+            let details = await response.json()
+            addNotification("error", "Error while attacking!", details.error);
+            console.error(`Could not attack: ${details.error}`);
+            return;
+        }
+        addNotification("info", "Attack complete", `Attacked ${selectedPlayer.username}`);
+        updateGameState();
+    }
+
+    // Notifications
+    function addNotification(type, title, description) {
+        let notification = {
+            type,
+            title,
+            description
+        };
+        notifications = notifications.concat([notification]);
+
+        setTimeout(() => {
+            removeNotification(notification);
+        }, 5000);
+    }
+    function removeNotification(notification) {
+        notifications = notifications.filter((checking_notification) => {
+            return notification !== checking_notification;
+        });
+    }
+    
+    // Utils
+    function calculateUpdatedPoints(player) {
+        let creationDate = new Date(player.creation_date * 1000);
+        let hours_since_creation_date = Math.floor((creationDate - new Date()) / 1000 / 60 / 60); // Get hours
+        hours_since_creation_date += 1; // Time zones suck. I do not want to deal with this.
+        console.log({hours_since_creation_date, creationDate});
+        let todo_points = hours_since_creation_date - player.awarded_points;
+
+        return player.action_points + todo_points;
     }
 
     // Debug
@@ -251,6 +436,11 @@
             }
         });
         updateGameState()
+    }
+
+    function deleteAccount() {
+        localStorage.removeItem("login_token");
+        location.href = "/";
     }
 
     onMount(() => {
@@ -271,6 +461,9 @@
 </script>
 
 <style>
+    /*
+        Generic
+    */
     span {
         color: #fff;
     }
@@ -296,6 +489,21 @@
     .content {
         display: flex;
     }
+    .danger-button {
+        background: #d83c3e;
+        color: #000;
+        width: 100%;
+        height: 3vh;
+    }
+    .success-button {
+        background: #40D61A;
+        width: 100%;
+        height: 3vh;
+        color: #000;
+    }
+
+
+    /*Game*/
     .game-container {
         height: 100vh;
         width: 80vw;
@@ -304,10 +512,44 @@
         align-items: center;
     }
     .game {
+        overflow: scroll;
         display: flex;
         gap: 5px;
         flex-direction: column;
     }
+    .row {
+        display: flex;
+        gap: 5px;
+    }
+    .tile {
+        background: #aaa;
+        height: 5vh;
+        width: 5vh;
+    }
+    .tile-padding {
+        height: 5vh;
+        width: 5vh;
+    }
+    .players {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 100%;
+        width: 100%;
+    }
+    .player {
+        border-radius: 50%;
+        height: 1.5vh;
+        width: 1.5vh;
+    }
+    .current-player {
+        background: #40D61A;
+    }
+    .enemy-player {
+        background: #f00;
+    }
+
+    /*Inspector*/
     .sidebar {
         height: 100vh;
         width: 20vw;
@@ -315,6 +557,7 @@
         display: flex;
         justify-content: center;
         align-items: center;
+        overflow: scroll;
     }
     .inspector {
         height: 98vh;
@@ -339,6 +582,13 @@
         width: 20px;
         margin-right: 5px;
     }
+    .range-container {
+        float: left;
+        height: 20px;
+        width: 20px;
+        margin-right: 5px;
+    }
+
     .upgrades {
         display: flex;
         justify-content: center;
@@ -351,41 +601,6 @@
         height: 100px;
         width: 100px;
         display: flex;
-    }
-    .row {
-        display: flex;
-        gap: 5px;
-    }
-    .tile {
-        background: #aaa;
-        height: 5vh;
-        width: 5vh;
-    }
-    .players {
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        height: 100%;
-        width: 100%;
-    }
-    .player {
-        border-radius: 50%;
-        height: 1.5vh;
-        width: 1.5vh;
-    }
-    .current-player {
-        background: #40D61A;
-    }
-    .enemy-player {
-        background: #f00;
-    }
-    .attack-button {
-        background: #d83c3e;
-        color: #000;
-    }
-    .gift-button {
-        background: #40D61A;
-        color: #000;
     }
     .selected-player-actions > button {
         width: 100%;
@@ -403,14 +618,42 @@
         width: 100%;
         height: 3vh;
     }
-    .move-to-button {
-        background: #40D61A;
-        color: #000;
+
+    /*Notifications*/
+    .notifications-container {
+        position: absolute;
+        top: 1vh;
+        left: 1vw;
+        height: 100vh;
+        width: 17vw;
+        display: flex;
+        flex-direction: column;
+        gap: 5px;
     }
-    .debug-points-button {
-        background: #40D61A;
-        width: 100%;
-        height: 3vh;
-        color: #000;
+    .notification {
+        width: 17vw;
+        height: 20vh;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+    }
+    .notification-type-info {
+        background: #3c3c3f;
+        border-style: rounded;
+        border-radius: 20px;
+    }
+    .notification-type-error {
+        background: #3c3c3f;
+        border-radius: 5px;
+        border-style: solid;
+        border-color: transparent;
+        border-left-color: #f00;
+    }
+    .notification-content-container {
+        width: 80%;
+        height: 90%;
+    }
+    .notification-title {
+        color: #fff;
     }
 </style>
