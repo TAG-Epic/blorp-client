@@ -39,7 +39,7 @@
 
                             {/if}
                             <div
-                                class="tile"
+                                class={"tile tile-type-" + getTileType(tile.tile_type)}
                                 on:click={() => {selectedTile = tile;}}
                                 on:contextmenu|preventDefault={() => {
                                     if (getDistance(currentPlayer.position, tile.position) !== 1) {
@@ -160,6 +160,9 @@
                         {#if getDistance(selectedTile.position, currentPlayer.position) === 1}
                             <button class="success-button" on:click={moveTo}>Move to</button>
                         {/if}
+                        {#if getDistance(selectedTile.position, currentPlayer.position) === 0 && getTileType(selectedTile.tile_type) === "RESOURCEFUL"}
+                            <button class="success-button" on:click={dig}>Dig</button>
+                        {/if}
                     </div>
                 </div>
                 <hr />
@@ -234,10 +237,12 @@
         }
 
         players = await response.json();
-        players = players.map((player) => {
+        
+        /*players = players.map((player) => {
             player.action_points = calculateUpdatedPoints(player);
             return player;
         });
+        */
 
         currentPlayer = players.filter((player) => player.id == currentUserId)[0];
 
@@ -332,6 +337,28 @@
         }
         updateGameState();
     }
+    async function dig() {
+        let token = localStorage.getItem("login_token");
+
+        let response = await fetch(`${config.API_BASE}/board/dig`, {
+            method: "POST",
+            headers: {
+                "authentication": token
+            }
+        });
+
+        if (!response.ok) {
+            let details = await response.json()
+            addNotification("error", "Error while digging!", details.error);
+            console.error(`Could not dig: ${details.error}`);
+            return;
+        }
+        console.log(selectedTile);
+        let points = selectedTile.tile_type.RESOURCEFUL;
+        addNotification("info", "Dig", `Dug up ${points} action points`);
+        updateGameState();
+    }
+
 
     async function doUpgrade(upgradeType) {
         console.log(`Upgrading ${upgradeType}`);
@@ -417,12 +444,18 @@
     // Utils
     function calculateUpdatedPoints(player) {
         let creationDate = new Date(player.creation_date * 1000);
-        let hours_since_creation_date = Math.floor((creationDate - new Date()) / 1000 / 60 / 60); // Get hours
+        let hours_since_creation_date = Math.abs(Math.floor((creationDate - new Date()) / 1000 / 60 / 60)); // Get hours
         hours_since_creation_date += 1; // Time zones suck. I do not want to deal with this.
-        console.log({hours_since_creation_date, creationDate});
         let todo_points = hours_since_creation_date - player.awarded_points;
 
         return player.action_points + todo_points;
+    }
+
+    function getTileType(tileType) {
+        if (typeof tiletype === "string") {
+            return tileType;
+        }
+        return Object.keys(tileType)[0];
     }
 
     // Debug
@@ -451,7 +484,7 @@
             location.href = "/";
         }
         updateGameState();
-        updateGameStateTaskId = setInterval(updateGameState, 10000);
+        updateGameStateTaskId = setInterval(updateGameState, 500);
     });
 
     onDestroy(() => {
@@ -526,6 +559,12 @@
         height: 5vh;
         width: 5vh;
     }
+    .tile-type-RESOURCEFUL {
+        background: #0FF;
+        height: 5vh;
+        width: 5vh;
+    }
+
     .tile-padding {
         height: 5vh;
         width: 5vh;
@@ -588,7 +627,6 @@
         width: 20px;
         margin-right: 5px;
     }
-
     .upgrades {
         display: flex;
         justify-content: center;
