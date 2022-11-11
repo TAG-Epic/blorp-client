@@ -1,4 +1,7 @@
-# Colors
+# Join us!
+https://discord.gg/Jc4xxzvW
+
+# Design notes
 ## Background - from dark to light
 #121213 
 #181819
