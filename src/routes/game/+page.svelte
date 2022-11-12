@@ -608,7 +608,7 @@
         width: 2vh;
     }
     .tile-type-RESOURCEFUL {
-        background: #0FF !important;
+        background: #0FF;
     }
     .tile-padding {
         height: 2vh;
