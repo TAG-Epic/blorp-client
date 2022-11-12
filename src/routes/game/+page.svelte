@@ -39,7 +39,7 @@
 
                             {/if}
                             <div
-                                class={"tile tile-type-" + getTileType(tile.tile_type)}
+                                class={getTileClasses(tile)}
                                 on:click={() => {selectedTile = tile;}}
                                 on:contextmenu|preventDefault={() => {
                                     if (getDistance(currentPlayer.position, tile.position) !== 1) {
@@ -48,7 +48,11 @@
                                     selectedTile = tile;
                                     moveTo();
                                 }}
+                                title={tile.position.join(",")}
                             >
+                                {#if getTileType(tile.tile_type) === "RESOURCEFUL"}
+                                    <span class="tile-dig-resources">{tile.tile_type.RESOURCEFUL}</span>
+                                {/if}
                                 <div class="players">
                                     {#if currentPlayer.position[0] === tile.position[0] && currentPlayer.position[1] === tile.position[1]}
                                         <div class="player current-player" on:click={() => {selectedPlayer = null}}>
@@ -58,7 +62,7 @@
                                     <!-- Enemies -->
                                     {#each players as player}
                                         {#if player !== currentPlayer && player.position[0] == tile.position[0] && player.position[1] === tile.position[1] && player.health !== 0}
-                                        <div class="player enemy-player" on:click={() => {selectedPlayer = player}}>
+                                        <div class="player enemy-player" on:click={() => {selectedPlayer = player}} title={player.username}>
                                             
                                         </div>
                                         {/if}
@@ -79,19 +83,19 @@
                 <h1>Inspector</h1>
                 {#if currentPlayer !== null}
                     <div class="status-section">
-                        <div class="action-points">
+                        <div class="action-points" title="Action points">
                             <div class="action-point-container">
                                 <ActionPointIcon />
                             </div>
                             <span class="action-points">{currentPlayer.action_points}</span>
                         </div>
-                        <div class="health">
+                        <div class="health" title="Health">
                             <div class="health-container">
                                 <HealthIcon />
                             </div>
                             <span class="health">{currentPlayer.health}</span>
                         </div>
-                        <div class="range">
+                        <div class="range" title="Range">
                             <div class="range-container">
                                 <RangeIcon />
                             </div>
@@ -106,7 +110,7 @@
             <div class="upgrades-section">
                 <h1>Upgrades</h1>
                 <div class="upgrades">
-                    <div class="upgrade range-upgrade" on:click={() => {doUpgrade("range");}}>
+                    <div class="upgrade range-upgrade" on:click={() => {doUpgrade("range");}} title="Range upgrade">
                         <div class="icon-container">
                             <RangeIcon />
                         </div>
@@ -120,19 +124,19 @@
                 <div class="selected-player-section">
                     <h1>User: {selectedPlayer.username}</h1>
                     <div class="status-section">
-                        <div class="action-points">
+                        <div class="action-points" title="Action Points">
                             <div class="action-point-container">
                                 <ActionPointIcon />
                             </div>
                             <span class="action-points">{selectedPlayer.action_points}</span>
                         </div>
-                        <div class="health">
+                        <div class="health" title="Health">
                             <div class="health-container">
                                 <HealthIcon />
                             </div>
                             <span class="health">{selectedPlayer.health}</span>
                         </div>
-                        <div class="range">
+                        <div class="range" title="Range">
                             <div class="range-container">
                                 <RangeIcon />
                             </div>
@@ -140,13 +144,13 @@
                         </div>
                     </div>
 
-                    <h2>Actions</h2>
-                    <div class="selected-player-actions">
-                        {#if getDistance(currentPlayer.position, selectedPlayer.position) <= currentPlayer.range}
-                            <button class="success-button" on:click={giftSelectedPlayer}>Gift</button>
-                            <button class="danger-button" on:click={attackSelectedPlayer}>Attack!</button>
-                        {/if}
-                    </div>
+                    {#if getDistance(currentPlayer.position, selectedPlayer.position) <= currentPlayer.range}
+                        <h2>Actions</h2>
+                        <div class="selected-player-actions">
+                            <button class="success-button" on:click={giftSelectedPlayer} title="Gift one action point">Gift</button>
+                            <button class="danger-button" on:click={attackSelectedPlayer} title="Attack the player for 1 health. Costs 1 AP">Attack!</button>
+                        </div>
+                    {/if}
                     <hr />
                 </div>
             {/if}
@@ -158,10 +162,10 @@
                     <h2>Actions</h2>
                     <div class="selected-tile-actions">
                         {#if getDistance(selectedTile.position, currentPlayer.position) === 1}
-                            <button class="success-button" on:click={moveTo}>Move to</button>
+                            <button class="success-button" on:click={moveTo} title="Move to tile. Costs 1 AP">Move to</button>
                         {/if}
                         {#if getDistance(selectedTile.position, currentPlayer.position) === 0 && getTileType(selectedTile.tile_type) === "RESOURCEFUL"}
-                            <button class="success-button" on:click={dig}>Dig</button>
+                            <button class="success-button" on:click={dig} title="Dig resource tile. Gives a random amount of AP">Dig</button>
                         {/if}
                     </div>
                 </div>
@@ -192,10 +196,14 @@
                     {/if}
                     <button class="success-button" on:click={getDebugPoints}>Debug points</button>
                     <button class="danger-button" on:click={deleteAccount}>Delete account</button>
+                    <button class="success-button" on:click={() => {showMap = !showMap}}>Toggle map</button>
                     <button class="success-button" on:click={() => {
                         addNotification("info", "Test", "This is a test notification");
                     }}>Test notification</button>
-                    <hr>
+                    <h3>Players</h3>
+                    {#each players as player}
+                        <p>{player.username} ({getDistance(player.position, currentPlayer.position)})</p>
+                    {/each}
                 </div>
             {/if}
         </div>
@@ -219,6 +227,7 @@
     let selectedTile = null;
     let lowestX = 1000; // So high it will be changed later
     let notifications = [];
+    let showMap = false;
 
     // DEBUG
     let selectedTileDirection = null;
@@ -281,7 +290,7 @@
                 
                 let distance = getDistance(currentPlayer.position, tile.position);
 
-                if (distance > currentPlayer.range + 2) {
+                if (distance > currentPlayer.range + 2 && !showMap) {
                     return false;
                 }
 
@@ -452,7 +461,7 @@
     }
 
     function getTileType(tileType) {
-        if (typeof tiletype === "string") {
+        if (tileType === "EMPTY") {
             return tileType;
         }
         return Object.keys(tileType)[0];
@@ -474,6 +483,26 @@
     function deleteAccount() {
         localStorage.removeItem("login_token");
         location.href = "/";
+    }
+
+    function getTileClasses(tile) {
+        let classes = ["tile"];
+        
+        let tileType = getTileType(tile.tile_type);
+        classes.push("tile-type-" + tileType);
+
+        if (getDistance(currentPlayer.position, tile.position) <= currentPlayer.range) {
+            classes.push("tile-close-player");
+        }
+        players.forEach((player) => {
+            if (player === currentPlayer) return;
+            if (getDistance(player.position, tile.position) <= player.range && player.health !== 0) {
+                classes.push("tile-close-enemy");
+            }
+
+        });
+
+        return classes.join(" ");
     }
 
     onMount(() => {
@@ -545,7 +574,6 @@
         align-items: center;
     }
     .game {
-        overflow: scroll;
         display: flex;
         gap: 5px;
         flex-direction: column;
@@ -553,21 +581,6 @@
     .row {
         display: flex;
         gap: 5px;
-    }
-    .tile {
-        background: #aaa;
-        height: 5vh;
-        width: 5vh;
-    }
-    .tile-type-RESOURCEFUL {
-        background: #0FF;
-        height: 5vh;
-        width: 5vh;
-    }
-
-    .tile-padding {
-        height: 5vh;
-        width: 5vh;
     }
     .players {
         display: flex;
@@ -588,6 +601,29 @@
         background: #f00;
     }
 
+    /* Tiles */
+    .tile {
+        background: #aaa;
+        height: 2vh;
+        width: 2vh;
+    }
+    .tile-type-RESOURCEFUL {
+        background: #0FF !important;
+    }
+    .tile-padding {
+        height: 2vh;
+        width: 2vh;
+    }
+    .tile-close-player {
+        background: #888;
+    }
+    .tile-close-enemy {
+        background: #F88;
+    }
+    .tile-dig-resources {
+        color: #000;
+    }
+    
     /*Inspector*/
     .sidebar {
         height: 100vh;
@@ -667,6 +703,7 @@
         display: flex;
         flex-direction: column;
         gap: 5px;
+        pointer-events: none;
     }
     .notification {
         width: 17vw;
@@ -674,6 +711,7 @@
         display: flex;
         justify-content: center;
         align-items: center;
+        pointer-events: initial;
     }
     .notification-type-info {
         background: #3c3c3f;
