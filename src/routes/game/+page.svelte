@@ -79,19 +79,19 @@
                 <h1>Inspector</h1>
                 {#if currentPlayer !== null}
                     <div class="status-section">
-                        <div class="action-points">
+                        <div class="action-points" title="Action Points">
                             <div class="action-point-container">
                                 <ActionPointIcon />
                             </div>
                             <span class="action-points">{currentPlayer.action_points}</span>
                         </div>
-                        <div class="health">
+                        <div class="health" title="Health">
                             <div class="health-container">
                                 <HealthIcon />
                             </div>
                             <span class="health">{currentPlayer.health}</span>
                         </div>
-                        <div class="range">
+                        <div class="range" title="Range">
                             <div class="range-container">
                                 <RangeIcon />
                             </div>
