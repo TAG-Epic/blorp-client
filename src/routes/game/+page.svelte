@@ -387,7 +387,7 @@
             }
             _localBoard.push(tiles);
 
-            if (initial) [space_x, space_y] = locateCoordsBigMap(currentPlayer.position);
+            if (initial) [initial, [space_x, space_y]] = [false, locateCoordsBigMap(currentPlayer.position)];
         });
 
         localBoard = _localBoard; // State
