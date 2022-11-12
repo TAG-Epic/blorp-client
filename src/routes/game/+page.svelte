@@ -282,8 +282,7 @@
 
     function locateCoordsBigMap(position) {
         // position = [x, y]
-        x = Math.floor(position[0] / 10);
-        y = Math.floor(position[1] / 10);
+        let [x, y] = [Math.floor(position[0] / 10), Math.floor(position[1] / 10)];
 
         return [x, y];
     }
