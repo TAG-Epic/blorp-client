@@ -1,5 +1,5 @@
 let config = {
-	API_BASE: "http://bore.pub:39289",
+	API_BASE: "https://aced-89-11-182-58.eu.ngrok.io",
 	DEBUG: false
 };
 
