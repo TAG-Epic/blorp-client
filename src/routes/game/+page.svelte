@@ -235,6 +235,7 @@
     let lowestX = 1000; // So high it will be changed later
     let notifications = [];
 
+    let initial = true;
     let space_x = 0;
     let max_space_x = 2;
     let space_y = 0;
@@ -271,9 +272,7 @@
                 space_x += 1;
                 break;
             case "me":
-                console.log(currentPlayer.position);
-                console.log(locateCoordsBigMap(currentPlayer.position[0], currentPlayer.position[1]));
-                [space_x, space_y] = locateCoordsBigMap(currentPlayer.position[0], currentPlayer.position[1]);
+                [space_x, space_y] = locateCoordsBigMap(currentPlayer.position);
                 break;
             default:
                 console.log("error");
@@ -281,9 +280,10 @@
         }
     }
 
-    function locateCoordsBigMap(x, y) {
-        x = Math.floor(x / 10);
-        y = Math.floor(y / 10);
+    function locateCoordsBigMap(position) {
+        // position = [x, y]
+        x = Math.floor(position[0] / 10);
+        y = Math.floor(position[1] / 10);
 
         return [x, y];
     }
@@ -387,6 +387,8 @@
                 return;
             }
             _localBoard.push(tiles);
+
+            if (initial) [space_x, space_y] = locateCoordsBigMap(currentPlayer.position);
         });
 
         localBoard = _localBoard; // State
