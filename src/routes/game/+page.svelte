@@ -120,19 +120,19 @@
                 <div class="selected-player-section">
                     <h1>User: {selectedPlayer.username}</h1>
                     <div class="status-section">
-                        <div class="action-points">
+                        <div class="action-points" title="Action Points">
                             <div class="action-point-container">
                                 <ActionPointIcon />
                             </div>
                             <span class="action-points">{selectedPlayer.action_points}</span>
                         </div>
-                        <div class="health">
+                        <div class="health" title="Health">
                             <div class="health-container">
                                 <HealthIcon />
                             </div>
                             <span class="health">{selectedPlayer.health}</span>
                         </div>
-                        <div class="range">
+                        <div class="range" title="Range">
                             <div class="range-container">
                                 <RangeIcon />
                             </div>
@@ -155,15 +155,38 @@
             {#if selectedTile !== null}
                 <div class="selected-tile-section">
                     <h1>Selected tile</h1>
+                    <p align="center">Coords: {selectedTile.position[0]}, {selectedTile.position[1]}</p>
+                    {#if hasTileActions(selectedTile, currentPlayer)}
+                        <h2>Actions</h2>
+                        <div class="selected-tile-actions">
+                            {#if getDistance(selectedTile.position, currentPlayer.position) === 1}
+                                <button class="success-button" on:click={moveTo}>Move to</button>
+                            {/if}
+                            {#if getDistance(selectedTile.position, currentPlayer.position) === 0 && getTileType(selectedTile.tile_type) === "RESOURCEFUL"}
+                                <button class="success-button" on:click={dig}>Dig</button>
+                            {/if}
+                        </div>
+                    {/if}
+                </div>
+                <hr />
+            {/if}
+
+            <!-- Cheats Section -->
+            {#if cheats_enabled("any")}
+                <div class="cheats-section">
+                    <h1>Cheats</h1>
+                    <p align="center">Full Map: {cheats_enabled("FULL_MAP") ? "on" : "off"}</p>
                     <h2>Actions</h2>
-                    <div class="selected-tile-actions">
-                        {#if getDistance(selectedTile.position, currentPlayer.position) === 1}
-                            <button class="success-button" on:click={moveTo}>Move to</button>
-                        {/if}
-                        {#if getDistance(selectedTile.position, currentPlayer.position) === 0 && getTileType(selectedTile.tile_type) === "RESOURCEFUL"}
-                            <button class="success-button" on:click={dig}>Dig</button>
-                        {/if}
-                    </div>
+                    {#if cheats_enabled("FULL_MAP")}
+                        <h3>Full Map</h3>
+                        <p align="center">Coords: {space_x}, {space_y}</p>
+                        <hr class="cheat-hr" />
+                        <button class="success-button" on:click={() => moveMap("me")}>Back</button>
+                        <button class="success-button" on:click={() => moveMap("up")}>Map Up</button>
+                        <button class="success-button" on:click={() => moveMap("down")}>Map Down</button>
+                        <button class="success-button" on:click={() => moveMap("left")}>Map Left</button>
+                        <button class="success-button" on:click={() => moveMap("right")}>Map Right</button>
+                    {/if}
                 </div>
                 <hr />
             {/if}
@@ -175,23 +198,15 @@
                     <h1>Debug</h1>
                     <p>Username: {currentPlayer.username}</p>
                     <p>Range: {currentPlayer.range}</p>
-                    <p>Position: {currentPlayer.position[0]}:{currentPlayer.position[1]}</p>
+                    <p>Position: {currentPlayer.position[0]}, {currentPlayer.position[1]}</p>
                     {#if selectedPlayer !== null}
                         <p>Selected player: {selectedPlayer.username}</p>
                     {:else}
                         <p>Selected player: null</p>
                     {/if}
 
-                    {#if selectedTile !== null}
-                        <p>Selected tile: {selectedTile.position[0]}:{selectedTile.position[1]}</p>
-                        <button class="success-button" on:click={() => {
-                            selectedTileDirection = getSelectedDirection();
-                        }}>tile direction: {selectedTileDirection}</button>
-                    {:else}
-                        <p>Selected tile: null</p>
-                    {/if}
                     <button class="success-button" on:click={getDebugPoints}>Debug points</button>
-                    <button class="danger-button" on:click={deleteAccount}>Delete account</button>
+                    <!--<button class="danger-button" on:click={deleteAccount}>Delete account</button>-->
                     <button class="success-button" on:click={() => {
                         addNotification("info", "Test", "This is a test notification");
                     }}>Test notification</button>
@@ -219,6 +234,60 @@
     let selectedTile = null;
     let lowestX = 1000; // So high it will be changed later
     let notifications = [];
+
+    let space_x = 0;
+    let max_space_x = 2;
+    let space_y = 0;
+    let max_space_y = 2;
+
+    // custom block - primus
+
+    function hasTileActions(selectedTile, currentPlayer) {
+        return getDistance(selectedTile.position, currentPlayer.position) === 1 || (getDistance(selectedTile.position, currentPlayer.position) === 0 && getTileType(selectedTile.tile_type) === "RESOURCEFUL")
+    }
+
+    function cheats_enabled(cheatName) {
+        if (cheatName === "any") return Object.values(config.CHEATS).some(item => item === true);
+        return config.CHEATS[cheatName]
+    }
+
+    function moveMap(direction) {
+        if (!cheats_enabled("FULL_MAP")) return false;
+        switch (direction) {
+            case "up":
+                if (space_y + 1 > max_space_y) return false;
+                space_y += 1;
+                break;
+            case "down":
+                if (space_y - 1 < 0) return false;
+                space_y -= 1;
+                break;
+            case "left":
+                if (space_x - 1 < 0) return false;
+                space_x -= 1;
+                break;
+            case "right":
+                if (space_x + 1 > max_space_x) return false;
+                space_x += 1;
+                break;
+            case "me":
+                console.log(currentPlayer.position);
+                console.log(locateCoordsBigMap(currentPlayer.position[0], currentPlayer.position[1]));
+                [space_x, space_y] = locateCoordsBigMap(currentPlayer.position[0], currentPlayer.position[1]);
+                break;
+            default:
+                console.log("error");
+                break;
+        }
+    }
+
+    function locateCoordsBigMap(x, y) {
+        x = Math.floor(x / 10);
+        y = Math.floor(y / 10);
+
+        return [x, y];
+    }
+
 
     // DEBUG
     let selectedTileDirection = null;
@@ -280,6 +349,30 @@
             let tiles = row.filter((tile) => {
                 
                 let distance = getDistance(currentPlayer.position, tile.position);
+
+                if (config.CHEATS.FULL_MAP) {
+                    // full map space on screen = 30Wx30H (900 tiles)
+                    if (tile.position[0] > 29 || tile.position[1] > 29 || tile.position[0] < 0 || tile.position[1] < 0) {
+                        return false;
+                    } else {
+                        let split_into = 3;
+                        let grid_size = 30;
+
+                        let chunk = grid_size / split_into;
+
+                        let min_x = space_x * chunk;
+                        let max_x = (space_x * chunk) + (chunk - 1);
+
+                        let min_y = space_y * chunk;
+                        let max_y = (space_y * chunk) + (chunk - 1);
+
+                        if ((tile.position[0] > max_x || tile.position[0] < min_x) || (tile.position[1] > max_y || tile.position[1] < min_y)) return false;
+                        if (tile.position[0] < lowestX) {
+                            lowestX = tile.position[0];
+                        }
+                        return true;
+                    }
+                }
 
                 if (distance > currentPlayer.range + 2) {
                     return false;
@@ -656,6 +749,11 @@
         width: 100%;
         height: 3vh;
     }
+    .cheat-hr {
+        width:50%;
+        text-align:center;
+        margin-center:0;
+    }
 
     /*Notifications*/
     .notifications-container {
@@ -667,6 +765,7 @@
         display: flex;
         flex-direction: column;
         gap: 5px;
+        pointer-events: none;
     }
     .notification {
         width: 17vw;
@@ -674,6 +773,7 @@
         display: flex;
         justify-content: center;
         align-items: center;
+        pointer-events: initial;
     }
     .notification-type-info {
         background: #3c3c3f;
